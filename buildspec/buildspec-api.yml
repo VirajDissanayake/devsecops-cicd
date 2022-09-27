@@ -1,0 +1,43 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - apt-get update
+      - apt install jq
+      - pip3 install pytest
+      - pip install -U gunicorn
+      - pip install -Ur ./rates/requirements.txt
+  pre_build:
+    commands:
+      - echo Testing the app for valid response
+      - ./rtes/gunicorn -b :3000 wsgi
+      - python -m pytest --junitxml=pytest_reports/pytest_report.xml
+      - ECR_URI=${REPOSITORY_URI%/*}
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+  build:
+    commands:
+      - cd ../
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t app .
+      - docker tag app:latest 503842812509.dkr.ecr.us-east-1.amazonaws.com/app:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push 503842812509.dkr.ecr.us-east-1.amazonaws.com/app:latest
+      - aws ecs describe-task-definition --task-definition green-blue-ecs-example | jq '.taskDefinition' > taskdef.json
+      - envsubst < appspec_template.yaml > appspec.yaml
+artifacts:
+  files:
+    - appspec.yaml
+    - taskdef.json
+reports:
+  pytest_reports:
+    files:
+      - pytest_report.xml
+    base-directory: pytest_reports/
+    file-format: JUNITXML

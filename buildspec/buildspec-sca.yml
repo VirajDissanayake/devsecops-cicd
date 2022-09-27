@@ -1,0 +1,16 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - echo "in the install phase"
+      - curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin   
+  # pre_build:
+  #   commands:
+  #     - grype dir:rates
+  build:
+    commands:
+      - echo "inside build stage"
+      - grype dir:rates #grype sca 
+      - cd ../
+      - docker build -t app .
+      - grype app:latest #frype container vulnerability scan
